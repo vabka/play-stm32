@@ -10,34 +10,33 @@ use stm32f4xx_hal as hal;
 
 #[entry]
 fn main() -> ! {
-    if let (Some(dp), Some(cp)) = (
-        stm32::Peripherals::take(),
-        cortex_m::peripheral::Peripherals::take(),
-    ) {
-        // Set up the LED. On the Nucleo-446RE it's connected to pin PA5.
-        let gpioa = dp.GPIOA.split();
-        let mut led1 = gpioa.pa6.into_push_pull_output();
-        let mut led2 = gpioa.pa7.into_push_pull_output();
+    let dp = stm32::Peripherals::take().unwrap();
+    let cp = cortex_m::peripheral::Peripherals::take().unwrap();
 
-        // Set up the system clock. We want to run at 48MHz for this one.
-        let rcc = dp.RCC.constrain();
-        let clocks = rcc.cfgr.sysclk(48.mhz()).freeze();
+    let gpio = dp.GPIOA.split();
 
-        // Create a delay abstraction based on SysTick
-        let mut delay = hal::delay::Delay::new(cp.SYST, clocks);
+    let mut led = gpio.pa6.into_push_pull_output();
 
-        loop {
-            led1.set_high().unwrap();
-            led2.set_low().unwrap();
+    // Set up the system clock. We want to run at 48MHz for this one.
+    let rcc = dp.RCC.constrain();
+    let clocks = rcc.cfgr.sysclk(48.mhz()).freeze();
 
-            delay.delay_ms(500u32);
+    // Create a delay abstraction based on SysTick
+    let mut delay = hal::delay::Delay::new(cp.SYST, clocks);
 
-            led1.set_low().unwrap();
-            led2.set_high().unwrap();
+    loop {
+        for _ in 0..3 {
+            led.set_high().unwrap();
+            delay.delay_ms(200u32);
+            led.set_low().unwrap();
+            delay.delay_ms(100u32);
+        }
 
-            delay.delay_ms(500u32);
+        for _ in 0..3 {
+            led.set_high().unwrap();
+            delay.delay_ms(600u32);
+            led.set_low().unwrap();
+            delay.delay_ms(100u32);
         }
     }
-
-    loop {}
 }
