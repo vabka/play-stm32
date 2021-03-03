@@ -3,40 +3,48 @@
 #![no_std]
 
 use crate::hal::{prelude::*, stm32};
-use cortex_m;
 use cortex_m_rt::entry;
+use hal::{delay::Delay, pwm};
 use panic_halt as _;
 use stm32f4xx_hal as hal;
 
 #[entry]
 fn main() -> ! {
-    let dp = stm32::Peripherals::take().unwrap();
-    let cp = cortex_m::peripheral::Peripherals::take().unwrap();
+    if let (Some(dp), Some(cp)) = (
+        stm32::Peripherals::take(),
+        cortex_m::peripheral::Peripherals::take(),
+    ) {
+        // Set up the system clock.
+        let rcc = dp.RCC.constrain();
+        let clocks = rcc.cfgr.freeze();
 
-    let gpio = dp.GPIOA.split();
+        // configure pins
+        let gpioa = dp.GPIOA.split();
+        let channels = gpioa.pa6.into_alternate_af2();
 
-    let mut led = gpio.pa6.into_push_pull_output();
+        // configure PWM
+        let mut ch1 = pwm::tim3(dp.TIM3, channels, clocks, 20u32.khz());
 
-    // Set up the system clock. We want to run at 48MHz for this one.
-    let rcc = dp.RCC.constrain();
-    let clocks = rcc.cfgr.sysclk(48.mhz()).freeze();
+        let mut delay = Delay::new(cp.SYST, clocks);
+        // initial state
+        let max_duty = ch1.get_max_duty();
+        ch1.set_duty(0);
+        ch1.enable();
+        let period = 400u32;
+        loop {
+            for offset in 1..=max_duty {
+                ch1.set_duty(offset);
+                delay.delay_us(period);
+            }
 
-    // Create a delay abstraction based on SysTick
-    let mut delay = hal::delay::Delay::new(cp.SYST, clocks);
+            for offset in (0..max_duty).rev() {
+                ch1.set_duty(offset);
+                delay.delay_us(period);
+            }
+        }
+    }
 
     loop {
-        for _ in 0..3 {
-            led.set_high().unwrap();
-            delay.delay_ms(200u32);
-            led.set_low().unwrap();
-            delay.delay_ms(100u32);
-        }
-
-        for _ in 0..3 {
-            led.set_high().unwrap();
-            delay.delay_ms(600u32);
-            led.set_low().unwrap();
-            delay.delay_ms(100u32);
-        }
+        cortex_m::asm::nop();
     }
 }
